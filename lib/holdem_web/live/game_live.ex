@@ -4,7 +4,6 @@ defmodule HoldemWeb.GameLive do
 
   alias Holdem.Card
   alias Holdem.Poker.Game
-  alias Holdem.Poker.GamePlayer
   alias Holdem.Poker.Player
 
   @suits ~w(hearts diamonds spades clubs)a
@@ -32,12 +31,12 @@ defmodule HoldemWeb.GameLive do
           </div>
         </div>
         <div class="text-center text-4xl">
-          ${Decimal.to_string(decimal_sum(Enum.map(@game.game_players, fn p -> p.bet end)), :normal)}
+          ${Decimal.to_string(decimal_sum(Enum.map(@game.players, fn p -> p.bet end)), :normal)}
         </div>
       </div>
       <div class="flex flex-row justify-center">
         <div
-          :for={{player, i} <- Enum.with_index(@game.game_players)}
+          :for={{player, i} <- Enum.with_index(@game.players)}
           class={[
             "w-32 h-32 p-2",
             player.is_folded && "bg-base-200",
@@ -45,7 +44,7 @@ defmodule HoldemWeb.GameLive do
             player.is_winner && "bg-accent text-accent-content"
           ]}
         >
-          <div class="text-center">{player.player.name}</div>
+          <div class="text-center">{player.name}</div>
           <div class="text-center text-sm opacity-50 mb-2">
             <%= cond do %>
               <% player.is_dealer -> %>
@@ -63,7 +62,7 @@ defmodule HoldemWeb.GameLive do
         </div>
       </div>
       <div
-        :for={{player, i} <- Enum.with_index(@game.game_players)}
+        :for={{player, i} <- Enum.with_index(@game.players)}
         class={[
           "flex flex-row gap-4 p-4",
           player.is_folded && "bg-base-200",
@@ -205,7 +204,7 @@ defmodule HoldemWeb.GameLive do
     if game_id = unsigned_params["id"] do
       game =
         Repo.get(Game, game_id)
-        |> Repo.preload(game_players: :player)
+        |> Repo.preload([:players])
 
       socket =
         socket
@@ -243,16 +242,9 @@ defmodule HoldemWeb.GameLive do
           Ecto.Changeset.change(game, %{deck: deck})
           |> Repo.update!()
 
-          player =
-            %Player{
-              name: "Player #{i}"
-            }
-            |> Ecto.Changeset.change(%{})
-            |> Repo.insert!()
-
-          %GamePlayer{
+          %Player{
+            name: "Player #{i}",
             game_id: game.id,
-            player_id: player.id,
             cards: cards,
             position: i - 1,
             is_dealer: i == 1,
@@ -289,7 +281,7 @@ defmodule HoldemWeb.GameLive do
   end
 
   def handle_event("submit-action", %{"player_action" => "call"}, socket) do
-    socket.assigns.game.game_players
+    socket.assigns.game.players
     |> Enum.find(& &1.is_under_the_gun)
     |> then(fn player ->
       Ecto.Changeset.change(player, %{
@@ -300,7 +292,7 @@ defmodule HoldemWeb.GameLive do
 
     game =
       Repo.reload!(socket.assigns.game)
-      |> Repo.preload(game_players: :player)
+      |> Repo.preload([:players])
 
     socket =
       socket
@@ -314,7 +306,7 @@ defmodule HoldemWeb.GameLive do
   end
 
   def handle_event("submit-action", %{"player_action" => "raise"} = params, socket) do
-    socket.assigns.game.game_players
+    socket.assigns.game.players
     |> Enum.find(& &1.is_under_the_gun)
     |> then(fn player ->
       Ecto.Changeset.change(player, %{
@@ -325,7 +317,7 @@ defmodule HoldemWeb.GameLive do
 
     game =
       Repo.reload!(socket.assigns.game)
-      |> Repo.preload(game_players: :player)
+      |> Repo.preload([:players])
 
     socket =
       socket
@@ -345,7 +337,7 @@ defmodule HoldemWeb.GameLive do
   end
 
   def handle_event("submit-action", %{"player_action" => "fold"}, socket) do
-    socket.assigns.game.game_players
+    socket.assigns.game.players
     |> Enum.find(& &1.is_under_the_gun)
     |> then(fn player ->
       Ecto.Changeset.change(player, %{
@@ -356,7 +348,7 @@ defmodule HoldemWeb.GameLive do
 
     game =
       Repo.reload!(socket.assigns.game)
-      |> Repo.preload(game_players: :player)
+      |> Repo.preload([:players])
 
     socket =
       socket
@@ -371,7 +363,7 @@ defmodule HoldemWeb.GameLive do
 
   defp next_player(socket) do
     game = socket.assigns.game
-    players = socket.assigns.game.game_players
+    players = socket.assigns.game.players
     player_count = Enum.count(players)
 
     dealer_pos = Enum.find(players, & &1.is_dealer).position
@@ -416,7 +408,7 @@ defmodule HoldemWeb.GameLive do
         game =
           Ecto.Changeset.change(game, %{round: game.round + 1})
           |> Repo.update!()
-          |> Repo.preload(game_players: :player)
+          |> Repo.preload([:players])
 
         socket =
           if game.round == 1 do
@@ -429,7 +421,7 @@ defmodule HoldemWeb.GameLive do
                 deck: deck
               })
               |> Repo.update!()
-              |> Repo.preload(game_players: :player)
+              |> Repo.preload([:players])
 
             assign(socket, :game, game)
           else
@@ -447,7 +439,7 @@ defmodule HoldemWeb.GameLive do
                 deck: deck
               })
               |> Repo.update!()
-              |> Repo.preload(game_players: :player)
+              |> Repo.preload([:players])
 
             assign(socket, :game, game)
           else
@@ -462,7 +454,7 @@ defmodule HoldemWeb.GameLive do
                 {hand, rank, high_value} =
                   find_best_hand(player.cards, socket.assigns.game.community_cards)
 
-                {player.player_id,
+                {player.id,
                  %{
                    hand: hand,
                    hand_rank: rank,
@@ -482,13 +474,13 @@ defmodule HoldemWeb.GameLive do
               end)
 
             players
-            |> Enum.find(&(&1.player_id == winner_id))
+            |> Enum.find(&(&1.id == winner_id))
             |> Ecto.Changeset.change(%{is_winner: true})
             |> Repo.update!()
 
             game =
               Repo.reload!(game)
-              |> Repo.preload(game_players: :player)
+              |> Repo.preload([:players])
 
             assign(socket, :game, game)
           else
@@ -516,7 +508,7 @@ defmodule HoldemWeb.GameLive do
 
     game =
       Repo.reload!(game)
-      |> Repo.preload(game_players: :player)
+      |> Repo.preload([:players])
 
     socket =
       assign(

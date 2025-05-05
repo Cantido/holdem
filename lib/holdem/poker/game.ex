@@ -2,12 +2,10 @@ defmodule Holdem.Poker.Game do
   use Ecto.Schema
 
   alias Holdem.Card
-  alias Holdem.Poker.GamePlayer
   alias Holdem.Poker.Player
 
   schema "games" do
-    has_many :game_players, GamePlayer, preload_order: [asc: :position]
-    many_to_many :players, Player, join_through: GamePlayer
+    has_many :players, Player, preload_order: [asc: :position]
 
     field :round, :integer, default: 0
     field :big_blind, :decimal

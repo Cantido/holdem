@@ -1,22 +1,19 @@
 defmodule Holdem.Poker.Player do
   use Ecto.Schema
 
+  alias Holdem.Card
   alias Holdem.Poker.Game
-  alias Holdem.Poker.GamePlayer
-
-  import Ecto.Changeset
 
   schema "players" do
+    belongs_to :game, Game
+    embeds_many :cards, Card, on_replace: :delete
+
     field :name, :string
-
-    many_to_many :games, Game, join_through: GamePlayer
-
-    timestamps()
-  end
-
-  def changeset(model, params) do
-    model
-    |> cast(params, [:name])
-    |> validate_required([:name])
+    field :position, :integer
+    field :bet, :decimal
+    field :is_dealer, :boolean
+    field :is_winner, :boolean
+    field :is_under_the_gun, :boolean
+    field :is_folded, :boolean
   end
 end
