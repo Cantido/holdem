@@ -19,6 +19,7 @@ defmodule HoldemWeb.Router do
 
     get "/", PageController, :home
     live "/game", GameLive
+    live "/game/:id", GameLive
   end
 
   # Other scopes may use custom stacks.

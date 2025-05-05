@@ -12,9 +12,6 @@ defmodule Holdem.Application do
       Holdem.Repo,
       {DNSCluster, query: Application.get_env(:holdem, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Holdem.PubSub},
-      # Start a worker by calling: Holdem.Worker.start_link(arg)
-      # {Holdem.Worker, arg},
-      # Start to serve requests, typically the last entry
       HoldemWeb.Endpoint
     ]
 
