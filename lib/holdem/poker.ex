@@ -310,6 +310,10 @@ defmodule Holdem.Poker do
               end
             end)
 
+          game
+          |> Ecto.Changeset.change(%{state: :finished})
+          |> Repo.update!()
+
           players
           |> Enum.find(&(&1.id == winner_id))
           |> Ecto.Changeset.change(%{is_winner: true})

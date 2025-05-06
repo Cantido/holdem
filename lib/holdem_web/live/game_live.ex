@@ -43,6 +43,10 @@ defmodule HoldemWeb.GameLive do
     >
       Waiting for you to start the game <button class="btn" phx-click="start-game">Start</button>
     </div>
+    <% winner = Enum.find(@game.players, & &1.is_winner) %>
+    <div :if={winner} class="bg-accent text-accent-conent text-3xl text-center p-4">
+      {winner.name} wins!
+    </div>
     """
   end
 
@@ -88,7 +92,7 @@ defmodule HoldemWeb.GameLive do
       <div
         :for={player <- players_around_table}
         class={[
-          "w-32 h-32 p-2",
+          "w-48 p-2",
           player.is_folded && "bg-base-200",
           !player.is_winner && player.is_under_the_gun && "bg-neutral text-neutral-content",
           player.is_winner && "bg-accent text-accent-content"
@@ -106,9 +110,25 @@ defmodule HoldemWeb.GameLive do
         <div class="text-2xl text-center">
           {player.bet}
         </div>
-        <div :if={player.is_winner} class="text-xl text-center">
-          Winner!
-        </div>
+        <%= if @game.state == :finished do %>
+          <div class="m-4 flex flex-row gap-2 justify-center">
+            <.card
+              :for={%Card{suit: suit, rank: rank} <- player.cards}
+              suit={suit}
+              value={rank}
+              width="50"
+            />
+          </div>
+          <div class="text-center">
+            <% {hand, _rank, _high} = Poker.find_best_hand(player.cards, @game.community_cards) %>
+            {hand}
+          </div>
+        <% else %>
+          <div class="m-4 flex flex-row gap-2 justify-center">
+            <.card_back width="64" />
+            <.card_back width="64" />
+          </div>
+        <% end %>
       </div>
     </div>
     """
