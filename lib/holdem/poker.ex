@@ -534,7 +534,6 @@ defmodule Holdem.Poker do
       Enum.frequencies_by(cards, fn %Card{rank: rank} -> rank end)
       |> Map.values()
       |> Enum.sort()
-      |> dbg()
 
     freqs == [1, 1, 1, 2]
   end
