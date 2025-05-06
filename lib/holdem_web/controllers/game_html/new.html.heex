@@ -1,15 +1,15 @@
-<form action="/game/new" method="post">
+<.form :let={f} for={@changeset} action="/game/new" method="post">
   <fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-xs border p-4">
     <legend class="fieldset-legend">New Game</legend>
 
-    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
-
-    <label class="label">Your name</label>
-    <input type="text" name="player-name" class="input validator" required />
+    <.inputs_for :let={f_player} field={f[:players]}>
+      <label class="label">Your name</label>
+      <.input field={f_player[:name]} type="text" class="input validator" required />
+    </.inputs_for>
 
     <label class="label">Initial bet</label>
-    <input type="number" min="0" name="big-blind" class="input validator" required />
+    <.input field={f[:big_blind]} type="number" min="0" class="input validator" required />
 
     <button type="submit" class="btn btn-primary mt-4">Create Game</button>
   </fieldset>
-</form>
+</.form>

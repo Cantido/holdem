@@ -1,12 +1,10 @@
-<form action={"/game/#{@game_id}/join"} method="post">
+<.form :let={f} for={@changeset} action={"/game/#{@game_id}/join"} method="post">
   <fieldset class="fieldset bg-base-200 border-base-300 rounded-box w-xs border p-4">
     <legend class="fieldset-legend">Join Game</legend>
 
-    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
-
     <label class="label">Your name</label>
-    <input type="text" name="player-name" class="input validator" required />
+    <.input field={f[:name]} type="text" class="input validator" required />
 
     <button type="submit" class="btn btn-primary mt-4">Join Game</button>
   </fieldset>
-</form>
+</.form>

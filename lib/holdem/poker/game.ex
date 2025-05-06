@@ -4,6 +4,8 @@ defmodule Holdem.Poker.Game do
   alias Holdem.Card
   alias Holdem.Poker.Player
 
+  import Ecto.Changeset
+
   schema "games" do
     has_many :players, Player, preload_order: [asc: :position]
 
@@ -15,5 +17,12 @@ defmodule Holdem.Poker.Game do
     embeds_many :deck, Card, on_replace: :delete
 
     timestamps()
+  end
+
+  def changeset(model, params) do
+    model
+    |> cast(params, [:big_blind])
+    |> cast_assoc(:players)
+    |> validate_required([:big_blind])
   end
 end
