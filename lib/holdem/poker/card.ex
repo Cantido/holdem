@@ -11,4 +11,12 @@ defmodule Holdem.Card do
       %__MODULE__{suit: suit, rank: rank}
     end
   end
+
+  def take_from_deck(deck, count) when count >= 1 do
+    Enum.reduce(1..count, {[], deck}, fn _i, {cards, deck} ->
+      {card, deck} = List.pop_at(deck, 0)
+
+      {cards ++ [card], deck}
+    end)
+  end
 end

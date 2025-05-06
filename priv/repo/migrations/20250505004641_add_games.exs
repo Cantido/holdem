@@ -7,6 +7,7 @@ defmodule Holdem.Repo.Migrations.AddGames do
       add :deck, {:array, :map}
       add :round, :integer, null: false
       add :big_blind, :decimal, null: false
+      add :state, :string, default: "waiting_for_players"
 
       timestamps()
     end

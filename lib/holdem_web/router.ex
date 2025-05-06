@@ -18,8 +18,11 @@ defmodule HoldemWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
-    live "/game", GameLive
+    get "/game/new", GameController, :new
+    post "/game/new", GameController, :create
     live "/game/:id", GameLive
+    get "/game/:id/join", GameController, :new_player
+    post "/game/:id/join", GameController, :join
   end
 
   # Other scopes may use custom stacks.

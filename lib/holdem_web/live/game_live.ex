@@ -1,4 +1,5 @@
 defmodule HoldemWeb.GameLive do
+  alias Phoenix.PubSub
   alias Holdem.Repo
   use HoldemWeb, :live_view
 
@@ -10,134 +11,203 @@ defmodule HoldemWeb.GameLive do
 
   def render(assigns) do
     ~H"""
-    <%= if is_nil(@game) do %>
-      <form phx-submit="new-game">
-        <input type="number" min="0" name="big-blind" />
-        <button type="submit" class="btn btn-primary">New Game</button>
-      </form>
-    <% else %>
-      <div class="bg-base-300 p-8">
-        <div class="flex flex-row gap-2 justify-center mb-8">
-          <.card
-            :for={%Card{suit: suit, rank: value} <- @game.community_cards}
-            width="100"
-            suit={suit}
-            value={value}
-          />
-          <div
-            :for={_i <- Stream.cycle([nil]) |> Stream.take(5 - Enum.count(@game.community_cards))}
-            class="w-[100px] h-36 border border-dashed rounded"
-          >
-          </div>
-        </div>
-        <div class="text-center text-4xl">
-          ${Decimal.to_string(decimal_sum(Enum.map(@game.players, fn p -> p.bet end)), :normal)}
-        </div>
-      </div>
-      <div class="flex flex-row justify-center">
-        <div
-          :for={{player, i} <- Enum.with_index(@game.players)}
-          class={[
-            "w-32 h-32 p-2",
-            player.is_folded && "bg-base-200",
-            !player.is_winner && player.is_under_the_gun && "bg-neutral text-neutral-content",
-            player.is_winner && "bg-accent text-accent-content"
-          ]}
-        >
-          <div class="text-center">{player.name}</div>
-          <div class="text-center text-sm opacity-50 mb-2">
-            <%= cond do %>
-              <% player.is_dealer -> %>
-                dealer
-              <% true -> %>
-                &nbsp;
-            <% end %>
-          </div>
-          <div class="text-2xl text-center">
-            ${Decimal.to_string(player.bet, :normal)}
-          </div>
-          <div :if={player.is_winner} class="text-xl text-center">
-            Winner!
-          </div>
-        </div>
-      </div>
-      <div
-        :for={{player, i} <- Enum.with_index(@game.players)}
-        class={[
-          "flex flex-row gap-4 p-4",
-          player.is_folded && "bg-base-200",
-          !player.is_winner && player.is_under_the_gun && "bg-neutral text-neutral-content",
-          player.is_winner && "bg-accent text-accent-content"
-        ]}
-      >
-        <%= if @round < 4 do %>
-          <div :if={player.is_under_the_gun}>
-            <.form for={@action_form} phx-change="change-action" phx-submit="submit-action">
-              <div :if={@game.round > 0}>
-                <label>
-                  <input
-                    type="radio"
-                    name="player_action"
-                    class="radio me-2"
-                    value="check"
-                    checked={@action_form[:player_action].value == "check"}
-                  /> Check
-                </label>
-              </div>
-              <div>
-                <label>
-                  <input
-                    type="radio"
-                    name="player_action"
-                    class="radio me-2"
-                    value="call"
-                    checked={@action_form[:player_action].value == "call"}
-                  /> Call (${@game.big_blind})
-                </label>
-              </div>
-              <div class="flex flex-row items-center">
-                <label class="me-2">
-                  <input
-                    type="radio"
-                    name="player_action"
-                    class="radio me-2"
-                    value="raise"
-                    checked={@action_form[:player_action].value == "raise"}
-                  /> Raise
-                </label>
-                <.input
-                  field={@action_form[:raise_bet]}
-                  class="input w-32"
-                  type="number"
-                  min={Decimal.mult(@game.big_blind, 2)}
-                />
-              </div>
-              <div>
-                <label>
-                  <input
-                    type="radio"
-                    name="player_action"
-                    class="radio me-2"
-                    value="fold"
-                    checked={@action_form[:player_action].value == "fold"}
-                  /> Fold
-                </label>
-              </div>
-              <button type="submit" class="btn btn-primary">Submit</button>
-            </.form>
-          </div>
-        <% else %>
-          <div :if={@winner == i}>
-            WINNER! {player.hand}
-          </div>
-        <% end %>
-      </div>
-    <% end %>
+    <.info_bar game={@game} player={@player} />
+    <.opponents_pane game={@game} player={@player} />
+    <.table_pane game={@game} />
+    <.player_pane game={@game} player={@player} action_form={@action_form} />
     """
   end
 
   defp decimal_sum(enum) do
     Enum.reduce(enum, Decimal.new(0), fn x, acc -> Decimal.add(acc, x) end)
+  end
+
+  attr :game, Game, required: true
+  attr :player, Player, required: true
+
+  defp info_bar(assigns) do
+    ~H"""
+    <div
+      :if={@game.state == :waiting_for_players && !@player.is_dealer}
+      class="bg-accent text-accent-content text-3xl text-center p-4"
+    >
+      Waiting for dealer to start the game
+    </div>
+    <div
+      :if={@game.state == :waiting_for_players && @player.is_dealer}
+      class="bg-accent text-accent-content text-3xl text-center p-4"
+    >
+      Waiting for you to start the game <button class="btn" phx-click="start-game">Start</button>
+    </div>
+    """
+  end
+
+  attr :game, Game, required: true
+
+  defp table_pane(assigns) do
+    ~H"""
+    <div class="bg-base-300 p-8">
+      <div class="flex flex-row gap-2 justify-center mb-8">
+        <.card
+          :for={%Card{suit: suit, rank: value} <- @game.community_cards}
+          width="100"
+          suit={suit}
+          value={value}
+        />
+        <div
+          :for={_i <- Stream.cycle([nil]) |> Stream.take(5 - Enum.count(@game.community_cards))}
+          class="w-[100px] h-36 border border-dashed rounded"
+        >
+        </div>
+      </div>
+      <div class="text-center text-4xl">
+        ${Decimal.to_string(decimal_sum(Enum.map(@game.players, fn p -> p.bet end)), :normal)}
+      </div>
+    </div>
+    """
+  end
+
+  attr :game, Game, required: true
+  attr :player, Player, required: true
+
+  defp opponents_pane(assigns) do
+    ~H"""
+    <% {later, sooner} =
+      @game.players
+      |> Enum.split(@player.position + 1)
+
+    players_around_table =
+      (sooner ++ later)
+      |> Enum.reject(&(&1.id == @player.id)) %>
+
+    <div class="flex flex-row justify-center">
+      <div
+        :for={player <- players_around_table}
+        class={[
+          "w-32 h-32 p-2",
+          player.is_folded && "bg-base-200",
+          !player.is_winner && player.is_under_the_gun && "bg-neutral text-neutral-content",
+          player.is_winner && "bg-accent text-accent-content"
+        ]}
+      >
+        <div class="text-center">{player.name}</div>
+        <div class="text-center text-sm opacity-50 mb-2">
+          <%= cond do %>
+            <% player.is_dealer -> %>
+              dealer
+            <% true -> %>
+              &nbsp;
+          <% end %>
+        </div>
+        <div class="text-2xl text-center">
+          ${Decimal.to_string(player.bet, :normal)}
+        </div>
+        <div :if={player.is_winner} class="text-xl text-center">
+          Winner!
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  attr :game, Game, required: true
+  attr :player, Player, required: true
+  attr :action_form, Phoenix.HTML.Form, required: true
+
+  defp player_pane(assigns) do
+    ~H"""
+    <div class="text-center text-xl m-8">{@player.name}</div>
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <div class="flex flex-row gap-2 justify-center m-8">
+          <.card
+            :for={%Card{suit: suit, rank: value} <- @player.cards}
+            width="100"
+            suit={suit}
+            value={value}
+          />
+        </div>
+        <div :if={@game.state == :waiting_for_players} class="flex flex-row gap-2 justify-center m-8">
+          <div class="w-[100px] h-36 border border-dashed rounded"></div>
+          <div class="w-[100px] h-36 border border-dashed rounded"></div>
+        </div>
+        <div :if={Enum.any?(@player.cards) && Enum.any?(@game.community_cards)} class="text-center">
+          <% {hand, _rank, _high} = find_best_hand(@player.cards, @game.community_cards) %>
+
+          {hand}
+        </div>
+      </div>
+      <div>
+        <div class={[
+          "flex flex-row gap-4 p-8 m-8 rounded-box",
+          @player.is_folded && "bg-base-200",
+          !@player.is_winner && @player.is_under_the_gun && "bg-neutral text-neutral-content",
+          @player.is_winner && "bg-accent text-accent-content"
+        ]}>
+          <.form for={@action_form} phx-change="change-action" phx-submit="submit-action">
+            <div :if={@game.round > 0}>
+              <label>
+                <input
+                  type="radio"
+                  name="player_action"
+                  class="radio me-2"
+                  value="check"
+                  checked={@action_form[:player_action].value == "check"}
+                  disabled={!@player.is_under_the_gun}
+                /> Check
+              </label>
+            </div>
+            <div>
+              <label>
+                <input
+                  type="radio"
+                  name="player_action"
+                  class="radio me-2"
+                  value="call"
+                  checked={@action_form[:player_action].value == "call"}
+                  disabled={!@player.is_under_the_gun}
+                /> Call (${@game.big_blind})
+              </label>
+            </div>
+            <div class="flex flex-row items-center">
+              <label class="me-2">
+                <input
+                  type="radio"
+                  name="player_action"
+                  class="radio me-2"
+                  value="raise"
+                  checked={@action_form[:player_action].value == "raise"}
+                  disabled={!@player.is_under_the_gun}
+                /> Raise
+              </label>
+              <.input
+                field={@action_form[:raise_bet]}
+                class="input w-32"
+                type="number"
+                min={Decimal.mult(@game.big_blind, 2)}
+                disabled={!@player.is_under_the_gun}
+              />
+            </div>
+            <div>
+              <label>
+                <input
+                  type="radio"
+                  name="player_action"
+                  class="radio me-2"
+                  value="fold"
+                  checked={@action_form[:player_action].value == "fold"}
+                  disabled={!@player.is_under_the_gun}
+                /> Fold
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary" disabled={!@player.is_under_the_gun}>
+              Submit
+            </button>
+          </.form>
+        </div>
+      </div>
+    </div>
+    """
   end
 
   attr :suit, :atom, values: @suits, required: true
@@ -179,20 +249,14 @@ defmodule HoldemWeb.GameLive do
     """
   end
 
-  def mount(_params, _session, socket) do
-    deck =
-      for suit <- ~w(hearts diamonds spades clubs)a, num <- 2..14 do
-        {suit, num}
-      end
-      |> Enum.shuffle()
+  def mount(_params, %{"player_id" => player_id}, socket) do
+    player = Repo.get!(Player, player_id)
 
     socket =
       socket
       |> assign(%{
+        player: player,
         game: nil,
-        deck: deck,
-        round: 0,
-        player_under_the_gun: 3,
         winner: nil,
         action_form: nil
       })
@@ -203,8 +267,10 @@ defmodule HoldemWeb.GameLive do
   def handle_params(unsigned_params, _uri, socket) do
     if game_id = unsigned_params["id"] do
       game =
-        Repo.get(Game, game_id)
+        Repo.get!(Game, game_id)
         |> Repo.preload([:players])
+
+      PubSub.subscribe(Holdem.PubSub, "game:#{game.id}")
 
       socket =
         socket
@@ -220,52 +286,88 @@ defmodule HoldemWeb.GameLive do
     end
   end
 
-  def handle_event("new-game", params, socket) do
+  def handle_event("start-game", _params, socket) do
     {:ok, game} =
       Repo.transaction(fn ->
-        big_blind = Decimal.new(params["big-blind"])
+        if Enum.count(socket.assigns.game.players) < 3 do
+          raise "TODO: Less than three players is a special case!"
+        end
 
         game =
-          %Game{}
+          socket.assigns.game
           |> Ecto.Changeset.change(%{
-            big_blind: big_blind,
-            community_cards: [],
-            deck: Card.deck() |> Enum.shuffle()
+            state: :playing
           })
-          |> Repo.insert!()
+          |> Repo.update!()
+          |> Repo.preload(:players)
 
-        Enum.each(1..5, fn i ->
-          game = Repo.get(Game, game.id)
+        Enum.each(game.players, fn %Player{} = player ->
+          game = Repo.reload!(game)
 
-          {cards, deck} = take_from_deck(game.deck, 2)
+          {cards, deck} = Card.take_from_deck(game.deck, 2)
 
-          Ecto.Changeset.change(game, %{deck: deck})
+          player
+          |> Ecto.Changeset.change(%{
+            cards: cards
+          })
           |> Repo.update!()
 
-          %Player{
-            name: "Player #{i}",
-            game_id: game.id,
-            cards: cards,
-            position: i - 1,
-            is_dealer: i == 1,
-            bet:
-              case i do
-                2 -> Decimal.div(big_blind, 2) |> Decimal.round(2)
-                3 -> big_blind
-                _ -> Decimal.new(0)
-              end,
-            is_under_the_gun: i == 4
-          }
-          |> Ecto.Changeset.change(%{})
-          |> Repo.insert!()
+          game
+          |> Ecto.Changeset.change(%{
+            deck: deck
+          })
+          |> Repo.update!()
         end)
 
-        game
+        game =
+          Repo.preload(game, :players)
+
+        dealer_pos =
+          Enum.find(game.players, & &1.is_dealer)
+          |> Map.get(:position)
+
+        small_blind_pos =
+          rem(dealer_pos + 1, Enum.count(game.players))
+
+        Enum.find(game.players, &(&1.position == small_blind_pos))
+        |> Ecto.Changeset.change(%{
+          bet: Decimal.div(game.big_blind, 2) |> Decimal.round(2)
+        })
+        |> Repo.update!()
+
+        big_blind_pos =
+          rem(small_blind_pos + 1, Enum.count(game.players))
+
+        Enum.find(game.players, &(&1.position == big_blind_pos))
+        |> Ecto.Changeset.change(%{
+          bet: game.big_blind
+        })
+        |> Repo.update!()
+
+        first_player_pos =
+          rem(big_blind_pos + 1, Enum.count(game.players))
+
+        Enum.find(game.players, &(&1.position == first_player_pos))
+        |> Ecto.Changeset.change(%{
+          is_under_the_gun: true
+        })
+        |> Repo.update!()
+
+        Repo.reload!(game)
+        |> Repo.preload(:players)
       end)
+
+    player =
+      Repo.reload(socket.assigns.player)
 
     socket =
       socket
-      |> push_patch(to: "/game/#{game.id}")
+      |> assign(%{
+        game: game,
+        player: player
+      })
+
+    PubSub.broadcast(Holdem.PubSub, "game:#{game.id}", :game_started)
 
     {:noreply, socket}
   end
@@ -302,6 +404,8 @@ defmodule HoldemWeb.GameLive do
 
     socket = next_player(socket)
 
+    PubSub.broadcast(Holdem.PubSub, "game:#{game.id}", :player_action_taken)
+
     {:noreply, socket}
   end
 
@@ -327,11 +431,15 @@ defmodule HoldemWeb.GameLive do
 
     socket = next_player(socket)
 
+    PubSub.broadcast(Holdem.PubSub, "game:#{game.id}", :player_action_taken)
+
     {:noreply, socket}
   end
 
   def handle_event("submit-action", %{"player_action" => "check"}, socket) do
     socket = next_player(socket)
+
+    PubSub.broadcast(Holdem.PubSub, "game:#{socket.assigns.game.id}", :player_action_taken)
 
     {:noreply, socket}
   end
@@ -358,6 +466,62 @@ defmodule HoldemWeb.GameLive do
 
     socket = next_player(socket)
 
+    PubSub.broadcast(Holdem.PubSub, "game:#{game.id}", :player_action_taken)
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:player_joined, _player_id}, socket) do
+    game =
+      Repo.reload!(socket.assigns.game)
+      |> Repo.preload([:players])
+
+    player =
+      Repo.reload!(socket.assigns.player)
+
+    socket =
+      socket
+      |> assign(%{
+        game: game,
+        player: player
+      })
+
+    {:noreply, socket}
+  end
+
+  def handle_info(:game_started, socket) do
+    game =
+      Repo.reload!(socket.assigns.game)
+      |> Repo.preload([:players])
+
+    player =
+      Repo.reload!(socket.assigns.player)
+
+    socket =
+      socket
+      |> assign(%{
+        game: game,
+        player: player
+      })
+
+    {:noreply, socket}
+  end
+
+  def handle_info(:player_action_taken, socket) do
+    game =
+      Repo.reload!(socket.assigns.game)
+      |> Repo.preload([:players])
+
+    player =
+      Repo.reload!(socket.assigns.player)
+
+    socket =
+      socket
+      |> assign(%{
+        game: game,
+        player: player
+      })
+
     {:noreply, socket}
   end
 
@@ -368,9 +532,6 @@ defmodule HoldemWeb.GameLive do
 
     dealer_pos = Enum.find(players, & &1.is_dealer).position
     current_pos = Enum.find(players, & &1.is_under_the_gun).position
-
-    first_player_id =
-      rem(dealer_pos + 1, player_count)
 
     {later, sooner} =
       0..(player_count - 1)
@@ -510,11 +671,15 @@ defmodule HoldemWeb.GameLive do
       Repo.reload!(game)
       |> Repo.preload([:players])
 
+    player =
+      Repo.reload!(socket.assigns.player)
+
     socket =
       assign(
         socket,
         %{
           game: game,
+          player: player,
           action_form:
             to_form(%{
               "player_action" => nil,
@@ -642,16 +807,16 @@ defmodule HoldemWeb.GameLive do
     Enum.group_by(cards, fn %Card{rank: rank} -> rank end)
     |> Enum.filter(fn {_rank, rank_cards} -> Enum.count(rank_cards) == 2 end)
     |> List.flatten()
-    |> Enum.max_by(fn %Card{rank: rank} -> rank end)
-    |> Map.get(:rank)
+    |> Enum.max_by(fn {rank, _cards} -> rank end)
+    |> elem(0)
   end
 
   defp high_card(:one_pair, cards) do
     Enum.group_by(cards, fn %Card{rank: rank} -> rank end)
     |> Enum.filter(fn {_rank, rank_cards} -> Enum.count(rank_cards) == 2 end)
     |> List.flatten()
-    |> Enum.max_by(fn %Card{rank: rank} -> rank end)
-    |> Map.get(:rank)
+    |> Enum.max_by(fn {rank, _cards} -> rank end)
+    |> elem(0)
   end
 
   defp high_card(_, cards) do
@@ -726,7 +891,7 @@ defmodule HoldemWeb.GameLive do
       |> Map.values()
       |> Enum.sort()
 
-    freqs == [2, 2, 1]
+    freqs == [1, 2, 2]
   end
 
   defp one_pair?(cards) do
@@ -734,7 +899,8 @@ defmodule HoldemWeb.GameLive do
       Enum.frequencies_by(cards, fn %Card{rank: rank} -> rank end)
       |> Map.values()
       |> Enum.sort()
+      |> dbg()
 
-    freqs == [2, 1, 1, 1]
+    freqs == [1, 1, 1, 2]
   end
 end
