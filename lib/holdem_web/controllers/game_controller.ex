@@ -7,13 +7,6 @@ defmodule HoldemWeb.GameController do
   alias Holdem.Poker.Player
   alias Phoenix.PubSub
 
-  def new(conn, _params) do
-    changeset =
-      Game.changeset(%Game{}, %{players: [%{}]})
-
-    render(conn, :new, changeset: changeset)
-  end
-
   def create(conn, %{"game" => params}) do
     {:ok, game} =
       Poker.create_game(params)

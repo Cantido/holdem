@@ -18,8 +18,8 @@ defmodule HoldemWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
-    get "/game/new", GameController, :new
     post "/game/new", GameController, :create
+    live "/game/new", GameLive.New
     live "/game/:id", GameLive
     get "/game/:id/join", GameController, :new_player
     post "/game/:id/join", GameController, :join

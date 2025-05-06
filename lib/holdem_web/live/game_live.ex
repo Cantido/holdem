@@ -21,7 +21,9 @@ defmodule HoldemWeb.GameLive do
   end
 
   defp decimal_sum(enum) do
-    Enum.reduce(enum, Decimal.new(0), fn x, acc -> Decimal.add(acc, x) end)
+    {:ok, sum} = Money.sum(enum)
+
+    sum
   end
 
   attr :game, Game, required: true
@@ -63,7 +65,7 @@ defmodule HoldemWeb.GameLive do
         </div>
       </div>
       <div class="text-center text-4xl">
-        ${Decimal.to_string(decimal_sum(Enum.map(@game.players, fn p -> p.bet end)), :normal)}
+        {Money.to_string!(decimal_sum(Enum.map(@game.players, fn p -> p.bet end)))}
       </div>
     </div>
     """
@@ -102,7 +104,7 @@ defmodule HoldemWeb.GameLive do
           <% end %>
         </div>
         <div class="text-2xl text-center">
-          ${Decimal.to_string(player.bet, :normal)}
+          {player.bet}
         </div>
         <div :if={player.is_winner} class="text-xl text-center">
           Winner!
@@ -168,7 +170,7 @@ defmodule HoldemWeb.GameLive do
                   value="call"
                   checked={@action_form[:player_action].value == "call"}
                   disabled={!@player.is_under_the_gun}
-                /> Call (${@game.big_blind})
+                /> Call ({@game.big_blind})
               </label>
             </div>
             <div class="flex flex-row items-center">
@@ -186,7 +188,7 @@ defmodule HoldemWeb.GameLive do
                 field={@action_form[:raise_bet]}
                 class="input w-32"
                 type="number"
-                min={Decimal.mult(@game.big_blind, 2)}
+                min={Money.to_decimal(Money.mult!(@game.big_blind, 2))}
                 disabled={!@player.is_under_the_gun}
               />
             </div>
@@ -269,7 +271,7 @@ defmodule HoldemWeb.GameLive do
         action_form:
           to_form(%{
             "player_action" => nil,
-            "raise_bet" => Decimal.mult(game.big_blind, 2)
+            "raise_bet" => Money.mult!(game.big_blind, 2)
           })
       })
 
@@ -321,19 +323,19 @@ defmodule HoldemWeb.GameLive do
         action_form:
           to_form(%{
             "player_action" => nil,
-            "raise_bet" => Decimal.mult(socket.assigns.game.big_blind, 2)
+            "raise_bet" => Money.mult!(socket.assigns.game.big_blind, 2)
           })
       })
 
     {:noreply, socket}
   end
 
-  def handle_event("submit-action", %{"player_action" => "raise"} = params, socket) do
+  def handle_event("submit-action", %{"raise_bet" => bet} = params, socket) do
     {:ok, %{player: player, game: game}} =
       Poker.player_action_raise(
         socket.assigns.scope,
         socket.assigns.scope.player.id,
-        Decimal.new(params["raise_bet"])
+        Money.new!(socket.assigns.game.big_blind.currency, Decimal.new(bet))
       )
 
     game = Repo.preload(game, [:players])
@@ -347,7 +349,7 @@ defmodule HoldemWeb.GameLive do
         action_form:
           to_form(%{
             "player_action" => nil,
-            "raise_bet" => Decimal.mult(socket.assigns.game.big_blind, 2)
+            "raise_bet" => Money.mult!(socket.assigns.game.big_blind, 2)
           })
       })
 
@@ -369,7 +371,7 @@ defmodule HoldemWeb.GameLive do
         action_form:
           to_form(%{
             "player_action" => nil,
-            "raise_bet" => Decimal.mult(socket.assigns.game.big_blind, 2)
+            "raise_bet" => Money.mult!(socket.assigns.game.big_blind, 2)
           })
       })
 
@@ -391,7 +393,7 @@ defmodule HoldemWeb.GameLive do
         action_form:
           to_form(%{
             "player_action" => nil,
-            "raise_bet" => Decimal.mult(socket.assigns.game.big_blind, 2)
+            "raise_bet" => Money.mult!(socket.assigns.game.big_blind, 2)
           })
       })
 

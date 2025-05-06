@@ -58,7 +58,9 @@ defmodule Holdem.MixProject do
       {:gettext, "~> 0.26"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.1.1"},
-      {:bandit, "~> 1.5"}
+      {:bandit, "~> 1.5"},
+      {:ex_money, "~> 5.0"},
+      {:ex_money_sql, "~> 1.11"}
     ]
   end
 

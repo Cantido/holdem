@@ -12,11 +12,13 @@ defmodule Holdem.Poker.Player do
 
     field :name, :string
     field :position, :integer
-    field :bet, :decimal
+    field :bet, Money.Ecto.Composite.Type
     field :is_dealer, :boolean
     field :is_winner, :boolean
     field :is_under_the_gun, :boolean
     field :is_folded, :boolean
+
+    timestamps()
   end
 
   def changeset(model, params) do
@@ -46,6 +48,16 @@ defmodule Holdem.Poker.Player do
         put_change(changeset, :is_dealer, true)
       else
         changeset
+      end
+    end)
+    |> prepare_changes(fn changeset ->
+      if get_field(changeset, :bet) do
+        changeset
+      else
+        game_id = get_field(changeset, :game_id)
+        game = changeset.repo.get!(Game, game_id)
+
+        put_change(changeset, :bet, Money.zero(game.big_blind))
       end
     end)
   end

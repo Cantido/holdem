@@ -6,7 +6,7 @@ defmodule Holdem.Repo.Migrations.AddGames do
       add :community_cards, {:array, :map}
       add :deck, {:array, :map}
       add :round, :integer, null: false
-      add :big_blind, :decimal, null: false
+      add :big_blind, :money_with_currency, null: false
       add :state, :string, default: "waiting_for_players"
 
       timestamps()
@@ -23,12 +23,14 @@ defmodule Holdem.Repo.Migrations.AddGames do
 
       add :cards, {:array, :map}
 
-      add :bet, :decimal, default: 0
+      add :bet, :money_with_currency, null: false
 
       add :is_dealer, :boolean, default: false
       add :is_winner, :boolean, default: false
       add :is_under_the_gun, :boolean, default: false
       add :is_folded, :boolean, default: false
+
+      timestamps()
     end
 
     create constraint(:players, :folded_cannot_win,

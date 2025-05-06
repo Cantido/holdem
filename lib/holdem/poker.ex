@@ -16,9 +16,12 @@ defmodule Holdem.Poker do
   end
 
   def create_player(game_id, params) do
-    Repo.get!(Game, game_id)
+    game = Repo.get!(Game, game_id)
+
+    game
     |> Ecto.build_assoc(:players)
     |> Player.changeset(params)
+    |> Ecto.Changeset.put_change(:bet, Money.zero(game.big_blind))
     |> Repo.insert()
   end
 
@@ -72,7 +75,7 @@ defmodule Holdem.Poker do
 
         Enum.find(game.players, &(&1.position == small_blind_pos))
         |> Ecto.Changeset.change(%{
-          bet: Decimal.div(game.big_blind, 2) |> Decimal.round(2)
+          bet: Money.div!(game.big_blind, 2)
         })
         |> Repo.update!()
 
@@ -117,7 +120,7 @@ defmodule Holdem.Poker do
 
       if player.is_under_the_gun do
         Ecto.Changeset.change(player, %{
-          bet: Decimal.add(player.bet, game.big_blind)
+          bet: Money.add!(player.bet, game.big_blind)
         })
         |> Repo.update()
       else
@@ -137,13 +140,13 @@ defmodule Holdem.Poker do
     end
   end
 
-  def player_action_raise(scope, player_id, %Decimal{} = bet) do
+  def player_action_raise(scope, player_id, %Money{} = bet) do
     if scope.player.id == player_id do
       player = Repo.get!(Player, player_id)
 
       if player.is_under_the_gun do
         Ecto.Changeset.change(player, %{
-          bet: Decimal.add(player.bet, bet)
+          bet: Money.add!(player.bet, bet)
         })
         |> Repo.update()
       else
