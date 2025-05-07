@@ -16,6 +16,7 @@ defmodule HoldemWeb.GameLive do
     <.info_bar game={@game} player={@player} />
     <.opponents_pane game={@game} player={@player} />
     <.table_pane game={@game} />
+    <.current_player_info player={@player} />
     <.player_pane game={@game} player={@player} action_form={@action_form} />
     """
   end
@@ -33,15 +34,25 @@ defmodule HoldemWeb.GameLive do
     ~H"""
     <div
       :if={@game.state == :waiting_for_players && !@player.is_dealer}
-      class="bg-accent text-accent-content text-3xl text-center p-4"
+      class="bg-accent text-accent-content text-center p-4"
     >
-      Waiting for dealer to start the game
+      <span class="text-3xl">Waiting for dealer to start the game.</span>
     </div>
     <div
       :if={@game.state == :waiting_for_players && @player.is_dealer}
-      class="bg-accent text-accent-content text-3xl text-center p-4"
+      class="bg-accent text-accent-content text-center p-4"
     >
-      Waiting for you to start the game <button class="btn" phx-click="start-game">Start</button>
+      <div class="text-3xl">Waiting for you to start the game</div>
+      <button class="btn w-64 m-4" phx-click="start-game">Start</button>
+      <div>
+        <div>Invite link:</div>
+        <input
+          type="text"
+          readonly="true"
+          class="input w-128 text-center"
+          value={HoldemWeb.Endpoint.url() <> "/game/#{@game.slug}/join"}
+        />
+      </div>
     </div>
     <% winner = Enum.find(@game.players, & &1.is_winner) %>
     <div :if={winner} class="bg-accent text-accent-conent text-3xl text-center p-4">
@@ -68,8 +79,24 @@ defmodule HoldemWeb.GameLive do
         >
         </div>
       </div>
-      <div class="text-center text-4xl">
-        {Money.to_string!(decimal_sum(Enum.map(@game.players, fn p -> p.bet end)))}
+      <div class="flex flex-row justify-center">
+        <div class="text-center">
+          <div class="text-4xl">
+            {Money.to_string!(decimal_sum(Enum.map(@game.players, fn p -> p.bet end)))}
+          </div>
+          <div class="text-xl opacity-50">
+            pot
+          </div>
+        </div>
+        <div class="divider divider-horizontal"></div>
+        <div class="text-center">
+          <div class="text-4xl">
+            {Money.to_string!(@game.bet)}
+          </div>
+          <div class="text-xl opacity-50">
+            this round
+          </div>
+        </div>
       </div>
     </div>
     """
@@ -98,7 +125,10 @@ defmodule HoldemWeb.GameLive do
           player.is_winner && "bg-accent text-accent-content"
         ]}
       >
-        <div class="text-center">{player.name}</div>
+        <div class="text-center text-2xl">{player.name}</div>
+        <div class="text-center">
+          {player.bankroll}
+        </div>
         <div class="text-center text-sm opacity-50 mb-2">
           <%= cond do %>
             <% player.is_dealer -> %>
@@ -106,9 +136,6 @@ defmodule HoldemWeb.GameLive do
             <% true -> %>
               &nbsp;
           <% end %>
-        </div>
-        <div class="text-2xl text-center">
-          {player.bet}
         </div>
         <%= if @game.state == :finished do %>
           <div class="m-4 flex flex-row gap-2 justify-center">
@@ -129,6 +156,30 @@ defmodule HoldemWeb.GameLive do
             <.card_back width="64" />
           </div>
         <% end %>
+        <div class="text-center mb-2">
+          {player.last_action}
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  attr :player, Player, required: true
+
+  defp current_player_info(assigns) do
+    ~H"""
+    <div class="p-8 bg-neutral text-neutral-content flex flex-row justify-around">
+      <div class="text-2xl flex-1 text-center">
+        {@player.name}
+        <div :if={@player.is_dealer} class="text-xl opacity-50">dealer</div>
+      </div>
+      <div class="flex-1">
+        <div class="text-2xl text-center">{@player.bet}</div>
+        <div class="text-xl text-center opacity-50">total bet</div>
+      </div>
+      <div class="flex-1">
+        <div class="text-2xl text-center">{@player.bankroll}</div>
+        <div class="text-xl text-center opacity-50">bank</div>
       </div>
     </div>
     """
@@ -140,10 +191,9 @@ defmodule HoldemWeb.GameLive do
 
   defp player_pane(assigns) do
     ~H"""
-    <div class="text-center text-xl m-8">{@player.name}</div>
-    <div class="grid grid-cols-2 gap-4">
+    <div class="flex flex-row justify-center place-items-center gap-4">
       <div>
-        <div class="flex flex-row gap-2 justify-center m-8">
+        <div class="flex flex-row gap-2 justify-end m-8">
           <.card
             :for={%Card{suit: suit, rank: value} <- @player.cards}
             width="100"
@@ -151,14 +201,14 @@ defmodule HoldemWeb.GameLive do
             value={value}
           />
         </div>
-        <div :if={@game.state == :waiting_for_players} class="flex flex-row gap-2 justify-center m-8">
-          <div class="w-[100px] h-36 border border-dashed rounded"></div>
-          <div class="w-[100px] h-36 border border-dashed rounded"></div>
-        </div>
         <div :if={Enum.any?(@player.cards) && Enum.any?(@game.community_cards)} class="text-center">
           <% {hand, _rank, _high} = Poker.find_best_hand(@player.cards, @game.community_cards) %>
 
           {hand}
+        </div>
+        <div :if={@game.state == :waiting_for_players} class="flex flex-row gap-2 justify-end m-8">
+          <div class="w-[100px] h-36 border border-dashed rounded"></div>
+          <div class="w-[100px] h-36 border border-dashed rounded"></div>
         </div>
       </div>
       <div>
