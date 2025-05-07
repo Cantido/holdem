@@ -162,68 +162,67 @@ defmodule HoldemWeb.GameLive do
         </div>
       </div>
       <div>
-        <div class="flex flex-row gap-4 p-8 m-8 rounded-box">
-          <.form for={@action_form} phx-change="change-action" phx-submit="submit-action">
-            <div :if={@game.round > 0}>
-              <label>
-                <input
-                  type="radio"
-                  name="player_action"
-                  class="radio me-2"
-                  value="check"
-                  checked={@action_form[:player_action].value == "check"}
-                  disabled={!@player.is_active}
-                /> Check
-              </label>
-            </div>
-            <div>
-              <label>
-                <input
-                  type="radio"
-                  name="player_action"
-                  class="radio me-2"
-                  value="call"
-                  checked={@action_form[:player_action].value == "call"}
-                  disabled={!@player.is_active}
-                /> Call ({@game.bet})
-              </label>
-            </div>
-            <div class="flex flex-row items-center">
-              <label class="me-2">
-                <input
-                  type="radio"
-                  name="player_action"
-                  class="radio me-2"
-                  value="raise"
-                  checked={@action_form[:player_action].value == "raise"}
-                  disabled={!@player.is_active}
-                /> Raise
-              </label>
-              <.input
-                field={@action_form[:raise_bet]}
-                class="input w-32"
-                type="number"
-                min={Money.to_decimal(Money.mult!(@game.bet, 2))}
+        <.form for={@action_form} phx-change="change-action" phx-submit="submit-action">
+          <div :if={@game.round > 0}>
+            <label>
+              <input
+                type="radio"
+                name="player_action"
+                class="radio me-2"
+                value="check"
+                checked={@action_form[:player_action].value == "check"}
                 disabled={!@player.is_active}
-              />
-            </div>
-            <div>
-              <label>
-                <input
-                  type="radio"
-                  name="player_action"
-                  class="radio me-2"
-                  value="fold"
-                  checked={@action_form[:player_action].value == "fold"}
-                  disabled={!@player.is_active}
-                /> Fold
-              </label>
-            </div>
-            <button type="submit" class="btn btn-primary" disabled={!@player.is_active}>
-              Submit
-            </button>
-          </.form>
-        </div>
+              /> Check
+            </label>
+          </div>
+          <div class="my-2">
+            <label>
+              <input
+                type="radio"
+                name="player_action"
+                class="radio me-2"
+                value="call"
+                checked={@action_form[:player_action].value == "call"}
+                disabled={!@player.is_active}
+              /> Call ({@game.bet})
+            </label>
+          </div>
+          <div class="flex flex-row items-center my-2">
+            <label class="me-2">
+              <input
+                type="radio"
+                name="player_action"
+                class="radio me-2"
+                value="raise"
+                checked={@action_form[:player_action].value == "raise"}
+                disabled={!@player.is_active}
+              /> Raise
+            </label>
+            <input
+              name="raise_bet"
+              class="input input-sm w-32"
+              type="number"
+              min={Money.to_decimal(Money.mult!(@game.bet, 2))}
+              value={Money.to_decimal(Money.mult!(@game.bet, 2))}
+              disabled={!@player.is_active}
+            />
+          </div>
+          <div class="my-2">
+            <label>
+              <input
+                type="radio"
+                name="player_action"
+                class="radio me-2"
+                value="fold"
+                checked={@action_form[:player_action].value == "fold"}
+                disabled={!@player.is_active}
+              /> Fold
+            </label>
+          </div>
+          <button type="submit" class="btn btn-primary" disabled={!@player.is_active}>
+            Bet
+          </button>
+        </.form>
       </div>
     </div>
     """
