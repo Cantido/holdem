@@ -60,7 +60,8 @@ defmodule Holdem.MixProject do
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
       {:ex_money, "~> 5.0"},
-      {:ex_money_sql, "~> 1.11"}
+      {:ex_money_sql, "~> 1.11"},
+      {:nanoid, "~> 2.0"}
     ]
   end
 

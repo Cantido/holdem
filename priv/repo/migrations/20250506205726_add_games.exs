@@ -3,6 +3,7 @@ defmodule Holdem.Repo.Migrations.AddGames do
 
   def change do
     create table(:games) do
+      add :slug, :string, null: false
       add :community_cards, {:array, :map}
       add :deck, {:array, :map}
       add :round, :integer, null: false
@@ -13,6 +14,7 @@ defmodule Holdem.Repo.Migrations.AddGames do
     end
 
     create constraint(:games, :round_within_range, check: "round >= 0 AND round <= 4")
+    create unique_index(:games, [:slug])
 
     create table(:players) do
       add :game_id, references(:games, on_update: :update_all, on_delete: :delete_all)

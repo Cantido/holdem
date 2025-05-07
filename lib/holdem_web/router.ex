@@ -20,9 +20,9 @@ defmodule HoldemWeb.Router do
     get "/", PageController, :home
     post "/game/new", GameController, :create
     live "/game/new", GameLive.New
-    live "/game/:id", GameLive
-    get "/game/:id/join", GameController, :new_player
-    post "/game/:id/join", GameController, :join
+    live "/game/:slug", GameLive
+    get "/game/:slug/join", GameController, :new_player
+    post "/game/:slug/join", GameController, :join
   end
 
   # Other scopes may use custom stacks.

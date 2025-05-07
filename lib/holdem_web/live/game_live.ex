@@ -268,9 +268,9 @@ defmodule HoldemWeb.GameLive do
     """
   end
 
-  def mount(%{"id" => game_id}, %{"player_id" => player_id}, socket) do
+  def mount(%{"slug" => game_slug}, %{"player_id" => player_id}, socket) do
     game =
-      Repo.get!(Game, game_id)
+      Repo.get_by!(Game, slug: game_slug)
       |> Repo.preload([:players])
 
     player = Repo.get!(Player, player_id)

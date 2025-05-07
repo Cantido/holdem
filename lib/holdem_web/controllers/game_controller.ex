@@ -21,24 +21,25 @@ defmodule HoldemWeb.GameController do
 
     conn
     |> put_session(:player_id, player.id)
-    |> redirect(to: "/game/#{game.id}")
+    |> redirect(to: "/game/#{game.slug}")
   end
 
-  def new_player(conn, %{"id" => game_id}) do
-    game = Repo.get!(Game, game_id)
+  def new_player(conn, %{"slug" => game_slug}) do
+    game = Repo.get_by!(Game, slug: game_slug)
 
     changeset = Player.changeset(%Player{}, %{})
 
-    render(conn, game_id: game.id, changeset: changeset)
+    render(conn, game_slug: game.slug, changeset: changeset)
   end
 
-  def join(conn, %{"id" => game_id, "player" => params}) do
-    {:ok, player} = Poker.create_player(game_id, params)
+  def join(conn, %{"slug" => game_slug, "player" => params}) do
+    game = Repo.get_by!(Game, slug: game_slug)
+    {:ok, player} = Poker.create_player(game.id, params)
 
-    PubSub.broadcast(Holdem.PubSub, "game:#{game_id}", {:player_joined, player.id})
+    PubSub.broadcast(Holdem.PubSub, "game:#{game.id}", {:player_joined, player.id})
 
     conn
     |> put_session(:player_id, player.id)
-    |> redirect(to: "/game/#{game_id}")
+    |> redirect(to: "/game/#{game.slug}")
   end
 end
