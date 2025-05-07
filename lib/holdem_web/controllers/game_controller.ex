@@ -7,9 +7,13 @@ defmodule HoldemWeb.GameController do
   alias Holdem.Poker.Player
   alias Phoenix.PubSub
 
-  def create(conn, %{"game" => params}) do
+  def create(conn, %{"game" => game_params, "currency" => currency}) do
+    bet = Money.new(game_params["bet"], currency)
+
     {:ok, game} =
-      Poker.create_game(params)
+      game_params
+      |> Map.put("bet", bet)
+      |> Poker.create_game()
 
     game = Repo.preload(game, :players)
 

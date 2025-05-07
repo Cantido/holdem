@@ -11,7 +11,7 @@ defmodule Holdem.Poker.Game do
 
     field :state, Ecto.Enum, values: [:waiting_for_players, :playing, :finished]
     field :round, :integer, default: 0
-    field :big_blind, Money.Ecto.Composite.Type
+    field :bet, Money.Ecto.Composite.Type
 
     embeds_many :community_cards, Card, on_replace: :delete
     embeds_many :deck, Card, on_replace: :delete
@@ -21,8 +21,8 @@ defmodule Holdem.Poker.Game do
 
   def changeset(model, params) do
     model
-    |> cast(params, [:big_blind])
+    |> cast(params, [:bet])
     |> cast_assoc(:players)
-    |> validate_required([:big_blind])
+    |> validate_required([:bet])
   end
 end

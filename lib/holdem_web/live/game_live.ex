@@ -94,7 +94,7 @@ defmodule HoldemWeb.GameLive do
         class={[
           "w-48 p-2",
           player.is_folded && "bg-base-200",
-          !player.is_winner && player.is_under_the_gun && "bg-neutral text-neutral-content",
+          !player.is_winner && player.is_active && "bg-neutral text-neutral-content",
           player.is_winner && "bg-accent text-accent-content"
         ]}
       >
@@ -162,12 +162,7 @@ defmodule HoldemWeb.GameLive do
         </div>
       </div>
       <div>
-        <div class={[
-          "flex flex-row gap-4 p-8 m-8 rounded-box",
-          @player.is_folded && "bg-base-200",
-          !@player.is_winner && @player.is_under_the_gun && "bg-neutral text-neutral-content",
-          @player.is_winner && "bg-accent text-accent-content"
-        ]}>
+        <div class="flex flex-row gap-4 p-8 m-8 rounded-box">
           <.form for={@action_form} phx-change="change-action" phx-submit="submit-action">
             <div :if={@game.round > 0}>
               <label>
@@ -177,7 +172,7 @@ defmodule HoldemWeb.GameLive do
                   class="radio me-2"
                   value="check"
                   checked={@action_form[:player_action].value == "check"}
-                  disabled={!@player.is_under_the_gun}
+                  disabled={!@player.is_active}
                 /> Check
               </label>
             </div>
@@ -189,8 +184,8 @@ defmodule HoldemWeb.GameLive do
                   class="radio me-2"
                   value="call"
                   checked={@action_form[:player_action].value == "call"}
-                  disabled={!@player.is_under_the_gun}
-                /> Call ({@game.big_blind})
+                  disabled={!@player.is_active}
+                /> Call ({@game.bet})
               </label>
             </div>
             <div class="flex flex-row items-center">
@@ -201,15 +196,15 @@ defmodule HoldemWeb.GameLive do
                   class="radio me-2"
                   value="raise"
                   checked={@action_form[:player_action].value == "raise"}
-                  disabled={!@player.is_under_the_gun}
+                  disabled={!@player.is_active}
                 /> Raise
               </label>
               <.input
                 field={@action_form[:raise_bet]}
                 class="input w-32"
                 type="number"
-                min={Money.to_decimal(Money.mult!(@game.big_blind, 2))}
-                disabled={!@player.is_under_the_gun}
+                min={Money.to_decimal(Money.mult!(@game.bet, 2))}
+                disabled={!@player.is_active}
               />
             </div>
             <div>
@@ -220,11 +215,11 @@ defmodule HoldemWeb.GameLive do
                   class="radio me-2"
                   value="fold"
                   checked={@action_form[:player_action].value == "fold"}
-                  disabled={!@player.is_under_the_gun}
+                  disabled={!@player.is_active}
                 /> Fold
               </label>
             </div>
-            <button type="submit" class="btn btn-primary" disabled={!@player.is_under_the_gun}>
+            <button type="submit" class="btn btn-primary" disabled={!@player.is_active}>
               Submit
             </button>
           </.form>
@@ -291,7 +286,7 @@ defmodule HoldemWeb.GameLive do
         action_form:
           to_form(%{
             "player_action" => nil,
-            "raise_bet" => Money.mult!(game.big_blind, 2)
+            "raise_bet" => Money.mult!(game.bet, 2)
           })
       })
 
@@ -343,19 +338,19 @@ defmodule HoldemWeb.GameLive do
         action_form:
           to_form(%{
             "player_action" => nil,
-            "raise_bet" => Money.mult!(socket.assigns.game.big_blind, 2)
+            "raise_bet" => Money.mult!(socket.assigns.game.bet, 2)
           })
       })
 
     {:noreply, socket}
   end
 
-  def handle_event("submit-action", %{"raise_bet" => bet} = params, socket) do
+  def handle_event("submit-action", %{"player_action" => "raise", "raise_bet" => bet}, socket) do
     {:ok, %{player: player, game: game}} =
       Poker.player_action_raise(
         socket.assigns.scope,
         socket.assigns.scope.player.id,
-        Money.new!(socket.assigns.game.big_blind.currency, Decimal.new(bet))
+        Money.new!(socket.assigns.game.bet.currency, Decimal.new(bet))
       )
 
     game = Repo.preload(game, [:players])
@@ -369,7 +364,7 @@ defmodule HoldemWeb.GameLive do
         action_form:
           to_form(%{
             "player_action" => nil,
-            "raise_bet" => Money.mult!(socket.assigns.game.big_blind, 2)
+            "raise_bet" => Money.mult!(socket.assigns.game.bet, 2)
           })
       })
 
@@ -391,7 +386,7 @@ defmodule HoldemWeb.GameLive do
         action_form:
           to_form(%{
             "player_action" => nil,
-            "raise_bet" => Money.mult!(socket.assigns.game.big_blind, 2)
+            "raise_bet" => Money.mult!(socket.assigns.game.bet, 2)
           })
       })
 
@@ -413,7 +408,7 @@ defmodule HoldemWeb.GameLive do
         action_form:
           to_form(%{
             "player_action" => nil,
-            "raise_bet" => Money.mult!(socket.assigns.game.big_blind, 2)
+            "raise_bet" => Money.mult!(socket.assigns.game.bet, 2)
           })
       })
 

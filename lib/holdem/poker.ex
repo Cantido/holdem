@@ -1,4 +1,5 @@
 defmodule Holdem.Poker do
+  alias Ecto.Multi
   alias Holdem.Poker.Game
   alias Holdem.Poker.Player
   alias Holdem.Card
@@ -21,7 +22,7 @@ defmodule Holdem.Poker do
     game
     |> Ecto.build_assoc(:players)
     |> Player.changeset(params)
-    |> Ecto.Changeset.put_change(:bet, Money.zero(game.big_blind))
+    |> Ecto.Changeset.put_change(:bet, Money.zero(game.bet))
     |> Repo.insert()
   end
 
@@ -75,7 +76,7 @@ defmodule Holdem.Poker do
 
         Enum.find(game.players, &(&1.position == small_blind_pos))
         |> Ecto.Changeset.change(%{
-          bet: Money.div!(game.big_blind, 2)
+          bet: Money.div!(game.bet, 2)
         })
         |> Repo.update!()
 
@@ -84,7 +85,7 @@ defmodule Holdem.Poker do
 
         Enum.find(game.players, &(&1.position == big_blind_pos))
         |> Ecto.Changeset.change(%{
-          bet: game.big_blind
+          bet: game.bet
         })
         |> Repo.update!()
 
@@ -93,7 +94,7 @@ defmodule Holdem.Poker do
 
         Enum.find(game.players, &(&1.position == first_player_pos))
         |> Ecto.Changeset.change(%{
-          is_under_the_gun: true
+          is_active: true
         })
         |> Repo.update!()
 
@@ -118,9 +119,9 @@ defmodule Holdem.Poker do
       player = Repo.get!(Player, player_id)
       game = Repo.get!(Game, player.game_id)
 
-      if player.is_under_the_gun do
+      if player.is_active do
         Ecto.Changeset.change(player, %{
-          bet: Money.add!(player.bet, game.big_blind)
+          bet: game.bet
         })
         |> Repo.update()
       else
@@ -143,20 +144,29 @@ defmodule Holdem.Poker do
   def player_action_raise(scope, player_id, %Money{} = bet) do
     if scope.player.id == player_id do
       player = Repo.get!(Player, player_id)
+      game = Repo.get!(Game, player.game_id)
 
-      if player.is_under_the_gun do
-        Ecto.Changeset.change(player, %{
-          bet: Money.add!(player.bet, bet)
-        })
-        |> Repo.update()
+      if player.is_active do
+        Multi.new()
+        |> Multi.update(:game, fn _ ->
+          Ecto.Changeset.change(game, %{
+            bet: bet
+          })
+        end)
+        |> Multi.update(:player, fn _ ->
+          Ecto.Changeset.change(player, %{
+            bet: bet
+          })
+        end)
+        |> Repo.transaction()
       else
         {:error, :not_your_turn}
       end
       |> case do
-        {:ok, player} ->
-          {:ok, game} = activate_next_player(scope, player.game_id)
+        {:ok, %{game: game, player: player}} ->
+          {:ok, game} = activate_next_player(scope, game.id)
 
-          PubSub.broadcast(Holdem.PubSub, "game:#{player.game_id}", :player_action_taken)
+          PubSub.broadcast(Holdem.PubSub, "game:#{game.id}", :player_action_taken)
 
           {:ok, %{player: player, game: game}}
 
@@ -172,7 +182,7 @@ defmodule Holdem.Poker do
     if scope.player.id == player_id do
       player = Repo.get!(Player, player_id)
 
-      if player.is_under_the_gun do
+      if player.is_active do
         {:ok, game} = activate_next_player(scope, player.game_id)
 
         PubSub.broadcast(Holdem.PubSub, "game:#{player.game_id}", :player_action_taken)
@@ -190,7 +200,7 @@ defmodule Holdem.Poker do
     if scope.player.id == player_id do
       player = Repo.get!(Player, player_id)
 
-      if player.is_under_the_gun do
+      if player.is_active do
         Ecto.Changeset.change(player, %{
           is_folded: true
         })
@@ -216,47 +226,26 @@ defmodule Holdem.Poker do
   def activate_next_player(scope, game_id) do
     current_player = Repo.get(Player, scope.player.id)
 
-    if current_player.is_under_the_gun do
+    if current_player.is_active do
       game =
         Repo.get!(Game, game_id)
         |> Repo.preload(:players)
 
-      players = game.players
-      player_count = Enum.count(players)
-
-      dealer_pos = Enum.find(players, & &1.is_dealer).position
-      current_pos = Enum.find(players, & &1.is_under_the_gun).position
-
-      {later, sooner} =
-        0..(player_count - 1)
-        |> Enum.split(dealer_pos + 1)
-
-      player_sequence = sooner ++ later
-
-      remaining_players =
-        player_sequence
-        |> Enum.drop_while(fn i -> i != current_pos end)
-        |> Enum.drop(1)
-        |> Enum.reject(fn i ->
-          player = Enum.at(players, i)
+      next_player =
+        Stream.cycle(game.players)
+        |> Stream.drop_while(fn player ->
+          !player.is_active
+        end)
+        |> Stream.drop(1)
+        |> Stream.drop_while(fn player ->
           player.is_folded
         end)
+        |> Stream.take(1)
+        |> Enum.at(0)
 
-      {next_player_pos, round_over} =
-        if Enum.empty?(remaining_players) do
-          pos =
-            player_sequence
-            |> Enum.reject(fn i ->
-              player = Enum.at(players, i)
-              player.is_folded
-            end)
-            |> List.first()
-
-          {pos, true}
-        else
-          pos = List.first(remaining_players)
-          {pos, false}
-        end
+      round_over =
+        Enum.reject(game.players, & &1.is_folded)
+        |> Enum.all?(fn player -> Money.equal?(player.bet, game.bet) end)
 
       if round_over do
         game =
@@ -287,7 +276,8 @@ defmodule Holdem.Poker do
 
         if game.round == 4 do
           player_hands =
-            players
+            game.players
+            |> Enum.reject(& &1.is_folded)
             |> Map.new(fn player ->
               {hand, rank, high_value} =
                 find_best_hand(player.cards, game.community_cards)
@@ -314,22 +304,23 @@ defmodule Holdem.Poker do
           |> Ecto.Changeset.change(%{state: :finished})
           |> Repo.update!()
 
-          players
+          game.players
           |> Enum.find(&(&1.id == winner_id))
           |> Ecto.Changeset.change(%{is_winner: true})
           |> Repo.update!()
         end
       end
 
-      Enum.find(players, & &1.is_under_the_gun)
-      |> Ecto.Changeset.change(%{
-        is_under_the_gun: false
-      })
-      |> Repo.update!()
+      Enum.filter(game.players, & &1.is_active)
+      |> Enum.map(fn player ->
+        Ecto.Changeset.change(player, %{
+          is_active: false
+        })
+        |> Repo.update!()
+      end)
 
-      Enum.find(players, &(&1.position == next_player_pos))
-      |> Ecto.Changeset.change(%{
-        is_under_the_gun: true
+      Ecto.Changeset.change(next_player, %{
+        is_active: true
       })
       |> Repo.update!()
 

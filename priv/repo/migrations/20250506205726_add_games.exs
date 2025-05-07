@@ -6,7 +6,7 @@ defmodule Holdem.Repo.Migrations.AddGames do
       add :community_cards, {:array, :map}
       add :deck, {:array, :map}
       add :round, :integer, null: false
-      add :big_blind, :money_with_currency, null: false
+      add :bet, :money_with_currency, null: false
       add :state, :string, default: "waiting_for_players"
 
       timestamps()
@@ -27,7 +27,7 @@ defmodule Holdem.Repo.Migrations.AddGames do
 
       add :is_dealer, :boolean, default: false
       add :is_winner, :boolean, default: false
-      add :is_under_the_gun, :boolean, default: false
+      add :is_active, :boolean, default: false
       add :is_folded, :boolean, default: false
 
       timestamps()
@@ -41,8 +41,8 @@ defmodule Holdem.Repo.Migrations.AddGames do
     create unique_index(:players, [:id, :game_id, :position])
 
     create unique_index(:players, [:id, :game_id],
-             name: "players_id_game_id_where_is_under_the_gun_idx",
-             where: "is_under_the_gun"
+             name: "players_id_game_id_where_is_active_idx",
+             where: "is_active"
            )
 
     create unique_index(:players, [:id, :game_id],

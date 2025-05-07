@@ -23,7 +23,7 @@ defmodule HoldemWeb.GameLive.New do
 
         <div class="join">
           <.input
-            field={@form[:big_blind]}
+            field={@form[:bet]}
             label="Initial bet"
             type="number"
             min="0"
