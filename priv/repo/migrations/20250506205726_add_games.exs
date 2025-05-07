@@ -7,8 +7,9 @@ defmodule Holdem.Repo.Migrations.AddGames do
       add :community_cards, {:array, :map}
       add :deck, {:array, :map}
       add :round, :integer, null: false
-      add :bet, :money_with_currency, null: false
       add :state, :string, default: "waiting_for_players"
+      add :player_starting_bankroll, :money_with_currency
+      add :bet, :money_with_currency, null: false
 
       timestamps()
     end
@@ -17,7 +18,8 @@ defmodule Holdem.Repo.Migrations.AddGames do
     create unique_index(:games, [:slug])
 
     create table(:players) do
-      add :game_id, references(:games, on_update: :update_all, on_delete: :delete_all)
+      add :game_id, references(:games, on_update: :update_all, on_delete: :delete_all),
+        null: false
 
       add :name, :string, null: false
 
@@ -25,7 +27,11 @@ defmodule Holdem.Repo.Migrations.AddGames do
 
       add :cards, {:array, :map}
 
+      add :bankroll, :money_with_currency, null: false
       add :bet, :money_with_currency, null: false
+      add :bet_this_round, :money_with_currency
+
+      add :last_action, :string
 
       add :is_dealer, :boolean, default: false
       add :is_winner, :boolean, default: false

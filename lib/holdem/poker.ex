@@ -74,18 +74,32 @@ defmodule Holdem.Poker do
         small_blind_pos =
           rem(dealer_pos + 1, Enum.count(game.players))
 
-        Enum.find(game.players, &(&1.position == small_blind_pos))
+        small_blind_player = Enum.find(game.players, &(&1.position == small_blind_pos))
+
+        small_blind_bet = Money.min!(small_blind_player.bankroll, Money.div!(game.bet, 2))
+
+        small_blind_player
         |> Ecto.Changeset.change(%{
-          bet: Money.div!(game.bet, 2)
+          bankroll: Money.sub!(small_blind_player.bankroll, small_blind_bet),
+          bet: small_blind_bet,
+          bet_this_round: small_blind_bet,
+          last_action: :open
         })
         |> Repo.update!()
 
         big_blind_pos =
           rem(small_blind_pos + 1, Enum.count(game.players))
 
-        Enum.find(game.players, &(&1.position == big_blind_pos))
+        big_blind_player = Enum.find(game.players, &(&1.position == big_blind_pos))
+
+        big_blind_bet = Money.min!(big_blind_player.bankroll, game.bet)
+
+        big_blind_player
         |> Ecto.Changeset.change(%{
-          bet: game.bet
+          bankroll: Money.sub!(big_blind_player.bankroll, big_blind_bet),
+          bet: big_blind_bet,
+          bet_this_round: big_blind_bet,
+          last_action: :open
         })
         |> Repo.update!()
 
@@ -114,15 +128,69 @@ defmodule Holdem.Poker do
     end
   end
 
-  def player_action_call(player_id, scope) do
+  def player_action_open(scope, player_id, %Money{} = amount) do
     if scope.player.id == player_id do
       player = Repo.get!(Player, player_id)
       game = Repo.get!(Game, player.game_id)
 
       if player.is_active do
-        Ecto.Changeset.change(player, %{
-          bet: game.bet
-        })
+        if !Money.positive?(amount) do
+          raise "Bet amount must be positive"
+        end
+
+        Multi.new()
+        |> Multi.update(:game, fn _ ->
+          Ecto.Changeset.change(game, %{
+            bet: amount
+          })
+        end)
+        |> Multi.update(:player, fn _ ->
+          Ecto.Changeset.change(player, %{
+            bankroll: Money.sub!(player.bankroll, amount),
+            bet: Money.add!(player.bet, amount),
+            bet_this_round: amount,
+            last_action: :open
+          })
+        end)
+        |> Repo.transaction()
+      else
+        {:error, :not_your_turn}
+      end
+      |> case do
+        {:ok, %{player: player, game: game}} ->
+          {:ok, game} = activate_next_player(scope, game.id)
+          PubSub.broadcast(Holdem.PubSub, "game:#{game.id}", :player_action_taken)
+          {:ok, %{player: player, game: game}}
+
+        err ->
+          err
+      end
+    else
+      {:error, :unauthorized}
+    end
+  end
+
+  def player_action_call(player_id, scope) do
+    if scope.player.id == player_id do
+      player = Repo.get!(Player, player_id)
+      game = Repo.get!(Game, player.game_id)
+
+      if Money.zero?(game.bet) do
+        raise "Cannot call when betting round has not been opened"
+      end
+
+      if player.is_active do
+        delta = Money.sub!(game.bet, player.bet_this_round)
+
+        Ecto.Changeset.change(
+          player,
+          %{
+            bankroll: Money.sub!(player.bankroll, delta),
+            bet: Money.add!(player.bet, delta),
+            bet_this_round: Money.add!(player.bet_this_round, delta),
+            last_action: :call
+          }
+        )
         |> Repo.update()
       else
         {:error, :not_your_turn}
@@ -141,21 +209,34 @@ defmodule Holdem.Poker do
     end
   end
 
-  def player_action_raise(scope, player_id, %Money{} = bet) do
+  def player_action_raise(scope, player_id, %Money{} = raise_to) do
     if scope.player.id == player_id do
       player = Repo.get!(Player, player_id)
       game = Repo.get!(Game, player.game_id)
+
+      if Money.zero?(game.bet) do
+        raise "Cannot raise when betting round has not been opened"
+      end
+
+      if Money.compare!(raise_to, game.bet) != :gt do
+        raise "Amount to raise to must be greater than the current bet"
+      end
 
       if player.is_active do
         Multi.new()
         |> Multi.update(:game, fn _ ->
           Ecto.Changeset.change(game, %{
-            bet: bet
+            bet: raise_to
           })
         end)
-        |> Multi.update(:player, fn _ ->
+        |> Multi.update(:player, fn %{game: game} ->
+          delta = Money.sub!(game.bet, player.bet_this_round)
+
           Ecto.Changeset.change(player, %{
-            bet: bet
+            bankroll: Money.sub!(player.bankroll, delta),
+            bet: Money.add!(player.bet, delta),
+            bet_this_round: game.bet,
+            last_action: :raise
           })
         end)
         |> Repo.transaction()
@@ -182,12 +263,29 @@ defmodule Holdem.Poker do
     if scope.player.id == player_id do
       player = Repo.get!(Player, player_id)
 
+      game =
+        Repo.get!(Game, player.game_id)
+        |> Repo.preload(:players)
+
+      if Enum.any?(game.players, &Money.positive?(&1.bet_this_round)) do
+        raise "Cannot check once betting has opened"
+      end
+
       if player.is_active do
-        {:ok, game} = activate_next_player(scope, player.game_id)
+        Ecto.Changeset.change(player, %{
+          last_action: :check
+        })
+        |> Repo.update()
+        |> case do
+          {:ok, player} ->
+            {:ok, game} = activate_next_player(scope, player.game_id)
+            PubSub.broadcast(Holdem.PubSub, "game:#{player.game_id}", :player_action_taken)
 
-        PubSub.broadcast(Holdem.PubSub, "game:#{player.game_id}", :player_action_taken)
+            {:ok, %{player: player, game: game}}
 
-        {:ok, %{player: player, game: game}}
+          err ->
+            err
+        end
       else
         {:error, :not_your_turn}
       end
@@ -202,7 +300,8 @@ defmodule Holdem.Poker do
 
       if player.is_active do
         Ecto.Changeset.change(player, %{
-          is_folded: true
+          is_folded: true,
+          last_action: :fold
         })
         |> Repo.update()
         |> case do
@@ -243,14 +342,36 @@ defmodule Holdem.Poker do
         |> Stream.take(1)
         |> Enum.at(0)
 
-      round_over =
+      all_players_acted =
         Enum.reject(game.players, & &1.is_folded)
-        |> Enum.all?(fn player -> Money.equal?(player.bet, game.bet) end)
+        |> Enum.all?(fn player -> not is_nil(player.last_action) end)
+
+      all_equal_bets =
+        Enum.reject(game.players, & &1.is_folded)
+        |> Enum.all?(fn player -> Money.equal?(player.bet_this_round, game.bet) end)
+
+      all_players_check =
+        Enum.reject(game.players, & &1.is_folded)
+        |> Enum.all?(fn player -> player.last_action == :check end)
+
+      round_over = all_players_acted && (all_equal_bets || all_players_check)
 
       if round_over do
-        game =
-          Ecto.Changeset.change(game, %{round: game.round + 1})
+        Enum.each(game.players, fn player ->
+          Ecto.Changeset.change(player, %{
+            last_action: nil,
+            bet_this_round: Money.zero(player.bet)
+          })
           |> Repo.update!()
+        end)
+
+        game =
+          Ecto.Changeset.change(game, %{
+            round: game.round + 1,
+            bet: Money.zero(game.bet)
+          })
+          |> Repo.update!()
+          |> Repo.preload(:players)
 
         if game.round == 1 do
           {cards, deck} = Card.take_from_deck(game.deck, 3)
@@ -311,8 +432,7 @@ defmodule Holdem.Poker do
         end
       end
 
-      Enum.filter(game.players, & &1.is_active)
-      |> Enum.map(fn player ->
+      Enum.each(game.players, fn player ->
         Ecto.Changeset.change(player, %{
           is_active: false
         })

@@ -21,17 +21,25 @@ defmodule HoldemWeb.GameLive.New do
           />
         </.inputs_for>
 
-        <div class="join">
-          <.input
-            field={@form[:bet]}
-            label="Initial bet"
-            type="number"
-            min="0"
-            class="input validator"
-            required
-          />
-          <.input type="select" options={@currencies} label="Currency" name="currency" value="USD" />
-        </div>
+        <.input type="select" options={@currencies} label="Currency" name="currency" value="USD" />
+
+        <.input
+          field={@form[:bet]}
+          label="Initial bet"
+          type="number"
+          min="0"
+          class="input validator"
+          required
+        />
+
+        <.input
+          field={@form[:player_starting_bankroll]}
+          label="Player bankroll"
+          type="number"
+          min="0"
+          class="input validator"
+          required
+        />
 
         <button type="submit" class="btn btn-primary mt-4">Create Game</button>
       </fieldset>
