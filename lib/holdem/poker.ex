@@ -453,10 +453,7 @@ defmodule Holdem.Poker do
   end
 
   def find_best_hand(player_cards, community_cards) do
-    combinations(community_cards, 3)
-    |> Enum.map(fn combination ->
-      player_cards ++ combination
-    end)
+    combinations(player_cards ++ community_cards, 5)
     |> Enum.map(&identify_hand/1)
     |> Enum.max(fn {_a_hand, a_rank, a_high}, {_b_hand, b_rank, b_high} ->
       if a_rank == b_rank do
