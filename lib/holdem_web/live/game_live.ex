@@ -42,8 +42,13 @@ defmodule HoldemWeb.GameLive do
       :if={@game.state == :waiting_for_players && @player.is_dealer}
       class="bg-accent text-accent-content text-center p-4"
     >
-      <div class="text-3xl">Waiting for you to start the game</div>
-      <button class="btn w-64 m-4" phx-click="start-game">Start</button>
+      <% players_left = 3 - Enum.count(@game.players) %>
+      <%= if players_left > 0 do %>
+        <div class="text-3xl">Waiting for at least {players_left} more players</div>
+      <% else %>
+        <div class="text-3xl">Waiting for you to start the game</div>
+      <% end %>
+      <button class="btn w-64 m-4" phx-click="start-game" disabled={players_left > 0}>Start</button>
       <div>
         <div>Invite link:</div>
         <input
