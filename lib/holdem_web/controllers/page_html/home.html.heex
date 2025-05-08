@@ -10,7 +10,7 @@
     </div>
     <div class="card bg-base-100 w-full max-w-sm shrink-0 shadow-2xl">
       <div class="card-body">
-        <.form :let={f} for={@changeset}>
+        <.form :let={f} for={@changeset} action="/game/new">
           <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
 
           <.inputs_for :let={f_player} field={f[:players]}>
